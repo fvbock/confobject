@@ -1,0 +1,11 @@
+language: go
+
+go:
+  - 1.3
+  - 1.4
+  - 1.5
+
+install:
+  - go get github.com/fvbock/uds-go/set
+  - go get github.com/smartystreets/goconvey/convey
+  - go get gopkg.in/yaml.v2
