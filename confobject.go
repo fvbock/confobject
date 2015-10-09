@@ -609,6 +609,7 @@ func (c *Config) extractAssertions() (err error) {
 			tag.Get(TAG_DEFAULT) != "" {
 			// log.Println("TAG_REQUIRED or TAG_DEFAULT for", key)
 			c.Assertions[key][key] = append(c.Assertions[key][key], configAssertions["NotBeNil"])
+			c.Assertions[key][key] = append(c.Assertions[key][key], configAssertions["NotBeEmpty"])
 		}
 	}
 	return
