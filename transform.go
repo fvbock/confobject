@@ -76,7 +76,6 @@ func boolFromInterface(value interface{}) (v bool, err error) {
 	switch value.(type) {
 	case string:
 		bs := strings.ToLower(value.(string))
-		fmt.Println("+++", bs)
 		switch bs {
 		case "t", "true":
 			v = true
@@ -88,7 +87,6 @@ func boolFromInterface(value interface{}) (v bool, err error) {
 	default:
 		err = fmt.Errorf("Cannot parse %v", value)
 	}
-	fmt.Println("+++", err)
 	return
 }
 

@@ -16,6 +16,7 @@ const (
 
 	TAG_DEFAULT         = "default"
 	TAG_REQUIRED        = "required"
+	TAG_ALIAS           = "alias"
 	TAG_ASSERTION       = "should"
 	TAG_ASSERTION_SEP   = " "
 	TAG_ASSERTION_VALUE = ":"
@@ -27,6 +28,8 @@ type Config struct {
 	ConfigValues           map[string]interface{}
 	Initialized            bool
 	ConfigKeys             *set.StringSet
+	KeyAliases             *set.StringSet
+	AliasKeyMap            map[string]string
 	ConfigTypes            map[string]string
 	ConfigTags             map[string]reflect.StructTag
 	PanicOnAssignmentError bool
@@ -60,11 +63,25 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 		}
 	}
 
+	// init sets
+	for key, type_ := range types {
+		switch type_ {
+		case "*set.StringSet":
+			cval.FieldByName(key).Set(reflect.ValueOf(set.NewStringSet()))
+		case "*set.IntSet":
+			cval.FieldByName(key).Set(reflect.ValueOf(set.NewIntSet()))
+		case "*set.Int64Set":
+			cval.FieldByName(key).Set(reflect.ValueOf(set.NewInt64Set()))
+		}
+	}
+
 	initC := Config{
 		MainConfig:   cval,
 		ConfigValues: make(map[string]interface{}),
 		Initialized:  false,
 		ConfigKeys:   namesSet,
+		KeyAliases:   set.NewStringSet(),
+		AliasKeyMap:  make(map[string]string),
 		ConfigTypes:  types,
 		ConfigTags:   tags,
 		Assertions:   assertions,
@@ -72,27 +89,56 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 
 	initC.initFuncs = append(
 		[]func() (err error){
+			initC.setDefaults,
 			initC.readFromEnv,
 		},
 		append(
 			initFuncs,
-			initC.setDefaults,
 			initC.Validate,
 		)...,
 	)
 
-	err = initC.extractAssertions()
+	// cval.FieldByName("Config").Set(reflect.ValueOf(initC))
+
+	// // get aliases
+	// err = cval.FieldByName("Config").MethodByName("extractAliases").Call([]reflect.Value{})
+	// log.Println("registered aliases:", cval.FieldByName("Config").(*Config).AliasKeyMap)
+	// if err == nil {
+	// 	// set Assertions
+	// 	err = cval.FieldByName("Config").MethodByName("extractAssertions").Call([]reflect.Value{})
+	// 	if err == nil {
+	// 		log.Println("extractAssertions() OK")
+	// 		// run all init functions
+	// 		err = cval.FieldByName("Config").MethodByName("ReInit").Call([]reflect.Value{})
+	// 		if err == nil {
+	// 			log.Println("ReInit() OK")
+	// 			cval.FieldByName("Initialized").SetBool(true)
+	// 		}
+	// 	}
+	// }
+
+	// get aliases
+	err = initC.extractAliases()
 	if err == nil {
-		log.Println("initC.extractAssertions() OK")
-		err = initC.ReInit()
+		// set Assertions
+		err = initC.extractAssertions()
 		if err == nil {
-			log.Println("initC.ReInit() OK")
-			initC.Initialized = true
+			log.Println("initC.extractAssertions() OK")
 		}
 	}
 	// reflect.ValueOf(&initC).MethodByName("Validate").Call([]reflect.Value{})
 
+	// run all init functions
 	cval.FieldByName("Config").Set(reflect.ValueOf(initC))
+	cfg := cval.FieldByName("Config").Interface().(Config)
+	err = cfg.ReInit()
+	// err = cval.FieldByName("Config").MethodByName("ReInit").Call([]reflect.Value{})[0].Interface().(error)
+	if err == nil {
+		log.Println("initC.ReInit() OK")
+		cval.FieldByName("Initialized").SetBool(true)
+	}
+
+	// cval.FieldByName("Config").Set(reflect.ValueOf(initC))
 
 	return
 }
@@ -100,8 +146,11 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 func (c *Config) FieldForKey(key string) (field reflect.Value, err error) {
 	field = c.MainConfig
 	if !c.ConfigKeys.HasMember(key) {
-		err = fmt.Errorf("Unknown config key: %s", key)
-		return
+		if _, notSet := c.AliasKeyMap[key]; !notSet {
+			err = fmt.Errorf("Unknown config key or alias: %s", key)
+			return
+		}
+		key = c.AliasKeyMap[key]
 	}
 	keyParts := strings.Split(key, ".")
 	for _, k := range keyParts {
@@ -114,8 +163,10 @@ func (c *Config) ReInit() (err error) {
 	for _, f := range c.initFuncs {
 		err = f()
 		if err != nil {
-			log.Println(err)
+			log.Printf("INIT: %s ERROR:%v\n", runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name(), err)
 			return
+		} else {
+			log.Printf("INIT: %s ok.\n", runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name())
 		}
 	}
 	return
@@ -140,6 +191,9 @@ func (c *Config) Validate() (err error) {
 				if err != nil {
 					log.Println(err)
 					continue
+				}
+				if c.ConfigTypes[key] == "*set.StringSet" {
+					fld = reflect.ValueOf(fld.Interface().(*set.StringSet).Members())
 				}
 
 				if key == targetKey {
@@ -172,7 +226,6 @@ func (c *Config) Validate() (err error) {
 							if err != nil {
 								return err
 							}
-
 							targetFld = reflect.ValueOf(strSlice.([]string))
 						}
 
@@ -245,7 +298,8 @@ func (c *Config) Set(configData interface{}, prependKeys ...string) (err error) 
 
 			err = c.setValue(key, field.Interface())
 			if err != nil {
-				panic(err.Error())
+				// panic(err.Error())
+				log.Println(err)
 			}
 		}
 
@@ -264,42 +318,47 @@ func (c *Config) Set(configData interface{}, prependKeys ...string) (err error) 
 			if len(prependKeys) > 0 {
 				key = fmt.Sprintf("%s.%s", strings.Join(prependKeys, "."), key)
 			}
+			// log.Println("---", key, configValue.MapIndex(keyVal).Interface())
 			err = c.setValue(key, configValue.MapIndex(keyVal).Interface())
 			if err != nil {
-				panic(err.Error())
+				// panic(err.Error())
+				log.Println(err)
+				// return
 			}
 		}
 
 	case reflect.Slice:
-		log.Println("reflect.Slice")
 		if len(prependKeys) == 0 {
-			log.Println("reflect.Slice A")
 			for i := 0; i < configValue.Len(); i++ {
 				if i == 0 {
 					keyCandidate, ok := configValue.Index(i).Interface().(string)
-					if ok && c.ConfigKeys.HasMember(keyCandidate) {
-						log.Println("keyCandidate", keyCandidate, configValue.Slice(1, configValue.Len()).Interface())
+					// fmt.Println("ok?", ok, c.ConfigKeys.HasMember(keyCandidate), c.KeyAliases.HasMember(keyCandidate))
+					if ok && (c.ConfigKeys.HasMember(keyCandidate) ||
+						c.KeyAliases.HasMember(keyCandidate)) {
 						err = c.setValue(keyCandidate, configValue.Slice(1, configValue.Len()).Interface())
 						if err != nil {
-							panic(err.Error())
+							// panic(err.Error())
+							log.Println(err)
 						}
 						return
 					}
 				}
+
 				err = c.Set(configValue.Index(i).Interface())
 				if err != nil {
-					panic(err.Error())
+					// panic(err.Error())
+					log.Println(err)
 				}
 			}
 		} else {
-			log.Println("reflect.Slice B")
 			key := fmt.Sprintf("%s", strings.Join(prependKeys, "."))
 			if c.ConfigKeys.HasMember(key) {
 				err = c.setValue(key, configValue.Interface())
 			}
 		}
 	default:
-		panic(fmt.Sprintf("I got stuff i can't deal with: %v\n", configData))
+		// panic(fmt.Sprintf("I got stuff i can't deal with: %v\n", configData))
+		log.Printf("I got stuff i can't deal with: %v\n", configData)
 	}
 
 	return
@@ -307,12 +366,11 @@ func (c *Config) Set(configData interface{}, prependKeys ...string) (err error) 
 
 func (c *Config) setValue(key string, value interface{}) (err error) {
 	var field reflect.Value
+	// fmt.Println("%", key, value)
 	field, err = c.FieldForKey(key)
 	if err != nil {
 		return
 	}
-
-	fmt.Println("%%", key, value)
 
 	ifaces, ok := value.([]interface{})
 	if ok {
@@ -331,12 +389,6 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 			case "string":
 				val = iface.(string)
 			case "[]string":
-				log.Println("FOOO")
-				// if reflect.TypeOf(val) == nil {
-				// 	val = []string{}
-				// }
-				// val = append(val.([]string), iface.(string))
-
 				if reflect.TypeOf(val) == nil {
 					val = []string{}
 				}
@@ -360,8 +412,8 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 				}
 				val = append(val.([]float64), iface.(float64))
 			default:
-				fmt.Println("nope")
-				fmt.Errorf("Cannot set config from %v", value)
+				err = fmt.Errorf("Cannot set config from %v", value)
+				fmt.Println("nope", err)
 				return
 			}
 
@@ -374,7 +426,7 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 	}
 
 	// fmt.Printf("set %s to a %v with value %v\n", key, c.ConfigTypes[key], value)
-	// fmt.Println("Got", reflect.TypeOf(value))
+	// fmt.Println("-- Got", reflect.TypeOf(value))
 
 	var is interface{}
 	switch c.ConfigTypes[key] {
@@ -382,9 +434,7 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 		var v bool
 		v, ok := value.(bool)
 		if !ok {
-			fmt.Println("not ok")
 			v, err = boolFromInterface(value)
-			// log.Println(":::", reflect.TypeOf(value).Elem().Name())
 			if err != nil {
 				return
 			}
@@ -394,15 +444,16 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 		var v string
 		v, ok := value.(string)
 		if !ok {
-			//err
+			vs, ok := value.([]string)
+			if ok {
+				v = vs[0]
+			}
 		}
 		field.SetString(v)
 	case "int":
-		fmt.Println("int...")
 		var v int64
 		v, ok := value.(int64)
 		if !ok {
-			fmt.Println("not ok")
 			v, err = intFromInterface(value)
 			if err != nil {
 				return
@@ -419,7 +470,8 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 			}
 		}
 		field.SetFloat(v)
-	case "[]string":
+	case "[]string", "*set.StringSet":
+		// log.Println("[]string", "*set.StringSet")
 		var v []string
 		v, ok := value.([]string)
 		if !ok {
@@ -430,8 +482,13 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 			}
 			v = is.([]string)
 		}
-		field.Set(reflect.ValueOf(v))
-	case "[]int":
+		if c.ConfigTypes[key] == "*set.StringSet" {
+			field.Set(reflect.ValueOf(set.NewStringSet(v...)))
+		} else {
+			field.Set(reflect.ValueOf(v))
+		}
+
+	case "[]int", "*set.IntSet":
 		var v []int
 		v, ok := value.([]int)
 		if !ok {
@@ -442,7 +499,12 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 			}
 			v = is.([]int)
 		}
-		field.Set(reflect.ValueOf(v))
+
+		if c.ConfigTypes[key] == "*set.IntSet" {
+			field.Set(reflect.ValueOf(set.NewIntSet(v...)))
+		} else {
+			field.Set(reflect.ValueOf(v))
+		}
 	case "[]float64":
 		var v []float64
 		v, ok := value.([]float64)
@@ -460,8 +522,8 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 	case "[]interface{}":
 		fmt.Println(">>> []interface{}")
 	default:
-		fmt.Println("nope")
-		// err
+		fmt.Println(">>> nope", c.ConfigTypes[key])
+		// err = fmt.Errorf("")
 	}
 
 	return
@@ -501,11 +563,25 @@ func (c *Config) setReloadable() (err error) {
 	return
 }
 
+func (c *Config) extractAliases() (err error) {
+	for key, tag := range c.ConfigTags {
+		if tag.Get(TAG_ALIAS) != "" {
+			if _, notSet := c.AliasKeyMap[tag.Get(TAG_ALIAS)]; !notSet {
+				c.KeyAliases.Add(tag.Get(TAG_ALIAS))
+				c.AliasKeyMap[tag.Get(TAG_ALIAS)] = key
+				c.ConfigTypes[tag.Get(TAG_ALIAS)] = c.ConfigTypes[key]
+			} else {
+				err = fmt.Errorf("Alias %s already set for field %s. Aliases must be unique.", tag.Get(TAG_ALIAS), c.AliasKeyMap[tag.Get(TAG_ALIAS)])
+				return
+			}
+		}
+	}
+	return
+}
+
 func (c *Config) extractAssertions() (err error) {
 	for key, tag := range c.ConfigTags {
 		if tag.Get(TAG_ASSERTION) != "" {
-			// TODO: multiple assertions
-			// assertions := strings.Split(tag.Get(TAG_ASSERTION), TAG_ASSERTION_SEP)
 			for _, assertion := range strings.Split(tag.Get(TAG_ASSERTION), TAG_ASSERTION_SEP) {
 				assertParts := strings.SplitN(assertion, TAG_ASSERTION_FIELD, 2)
 

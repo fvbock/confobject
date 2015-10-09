@@ -517,6 +517,26 @@ func TestMembershipAssertions(t *testing.T) {
 	})
 }
 
+func TestAliases(t *testing.T) {
+}
+
+func TestInitSets(t *testing.T) {
+	var err error
+	cfg1 := struct {
+		Config
+
+		StringSet *set.StringSet `default:"foo,bar"`
+		// StringSet *set.StringSet `default:"foo,bar" should:"BeIn:foo,bar,baz"`
+	}{}
+
+	err = InitConfig(&cfg1)
+	cv.Convey(`Initializing the config should pass.`, t, func() {
+		cv.So(err, cv.ShouldBeNil)
+		cv.So(cfg1.StringSet.HasMembers("foo", "bar"), cv.ShouldBeTrue)
+		t.Log(cfg1.StringSet.Members())
+	})
+}
+
 func TestLoadYaml(t *testing.T) {
 	var err error
 	cfg := struct {
@@ -564,10 +584,12 @@ func TestLoadYaml(t *testing.T) {
 		err = yaml.Unmarshal([]byte(yamlData), &v)
 		cv.So(err, cv.ShouldBeNil)
 
-		log.Println(v)
+		t.Log("---", v)
 		// log.Println(cfg)
 
 		err = cfg.Set(v)
+		t.Log(cfg.SliceConfig.StringSliceSetting)
+		t.Log(cfg.SliceConfig.IntSliceSetting)
 		// cv.So(err, cv.ShouldBeNil)
 	})
 
