@@ -98,25 +98,6 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 		)...,
 	)
 
-	// cval.FieldByName("Config").Set(reflect.ValueOf(initC))
-
-	// // get aliases
-	// err = cval.FieldByName("Config").MethodByName("extractAliases").Call([]reflect.Value{})
-	// log.Println("registered aliases:", cval.FieldByName("Config").(*Config).AliasKeyMap)
-	// if err == nil {
-	// 	// set Assertions
-	// 	err = cval.FieldByName("Config").MethodByName("extractAssertions").Call([]reflect.Value{})
-	// 	if err == nil {
-	// 		log.Println("extractAssertions() OK")
-	// 		// run all init functions
-	// 		err = cval.FieldByName("Config").MethodByName("ReInit").Call([]reflect.Value{})
-	// 		if err == nil {
-	// 			log.Println("ReInit() OK")
-	// 			cval.FieldByName("Initialized").SetBool(true)
-	// 		}
-	// 	}
-	// }
-
 	// get aliases
 	err = initC.extractAliases()
 	if err == nil {
@@ -126,19 +107,17 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 			log.Println("initC.extractAssertions() OK")
 		}
 	}
-	// reflect.ValueOf(&initC).MethodByName("Validate").Call([]reflect.Value{})
 
-	// run all init functions
+	// init functions might reference a global config - we now need to operate
+	// on the actualy object..
 	cval.FieldByName("Config").Set(reflect.ValueOf(initC))
 	cfg := cval.FieldByName("Config").Interface().(Config)
+	// run all init functions
 	err = cfg.ReInit()
-	// err = cval.FieldByName("Config").MethodByName("ReInit").Call([]reflect.Value{})[0].Interface().(error)
 	if err == nil {
 		log.Println("initC.ReInit() OK")
 		cval.FieldByName("Initialized").SetBool(true)
 	}
-
-	// cval.FieldByName("Config").Set(reflect.ValueOf(initC))
 
 	return
 }
@@ -267,7 +246,6 @@ func (c *Config) Validate() (err error) {
 					}
 				}
 
-				// log.Println("ASSERT", reflect.Indirect(fld), reflect.Indirect(targetFld))
 				if ok, message := Assert(fld.Interface(), asrtn, targetFld.Interface()); !ok {
 					return fmt.Errorf("Assertion failure: %s", message)
 				}
