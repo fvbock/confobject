@@ -39,7 +39,7 @@ type Config struct {
 }
 
 func (c Config) String() string {
-	repr = "Current Config:\n"
+	var repr = "Current Config:\n"
 	for _, key := range c.ConfigKeys.Members() {
 		fld, _ := c.FieldForKey(key)
 		repr += fmt.Sprintf("%s: %v.\n", key, fld.Interface())
