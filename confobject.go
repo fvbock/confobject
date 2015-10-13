@@ -35,6 +35,21 @@ type Config struct {
 	PanicOnAssignmentError bool
 	Assertions             map[string]map[string][]Assertion
 	initFuncs              []func() (err error)
+	LogSet                 bool
+}
+
+func (c *Config) AsString() (repr string) {
+	repr = "Current Config:\n"
+	for _, key := range c.ConfigKeys.Members() {
+		fld, _ := c.FieldForKey(key)
+		repr += fmt.Sprintf("%s: %v.\n", key, fld.Interface())
+	}
+	return
+}
+
+type InitFunc struct {
+	f           func() (err error)
+	exitOnError bool
 }
 
 func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
@@ -85,6 +100,7 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 		ConfigTypes:  types,
 		ConfigTags:   tags,
 		Assertions:   assertions,
+		LogSet:       cf.LogSet,
 	}
 
 	initC.initFuncs = append(
@@ -152,7 +168,6 @@ func (c *Config) ReInit() (err error) {
 }
 
 func (c *Config) Validate() (err error) {
-	log.Println("Validate()")
 	// assertionsLoop:
 	for key, assertionsMap := range c.Assertions {
 		for targetKey, assertions := range assertionsMap {
@@ -254,7 +269,7 @@ func (c *Config) Validate() (err error) {
 			}
 		}
 	}
-	log.Println("Validate() END")
+	log.Println("Config Validation OK")
 	return
 }
 
@@ -496,12 +511,17 @@ func (c *Config) setValue(key string, value interface{}) (err error) {
 		}
 		field.Set(reflect.ValueOf(v))
 	case "interface{}":
-		fmt.Println(">> interface{}")
+		err = fmt.Errorf("Set interface{} - not implemented")
+
 	case "[]interface{}":
-		fmt.Println(">>> []interface{}")
+		err = fmt.Errorf("Set []interface{} - not implemented")
 	default:
-		fmt.Println(">>> nope", c.ConfigTypes[key])
-		// err = fmt.Errorf("")
+		err = fmt.Errorf("Cannot deal with %v.", c.ConfigTypes[key])
+	}
+
+	if c.LogSet && err == nil {
+		fld, _ := c.FieldForKey(key)
+		log.Printf("Set %s to %v.\n", key, fld.Interface())
 	}
 
 	return
