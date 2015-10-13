@@ -38,13 +38,13 @@ type Config struct {
 	LogSet                 bool
 }
 
-func (c *Config) AsString() (repr string) {
+func (c Config) String() string {
 	repr = "Current Config:\n"
 	for _, key := range c.ConfigKeys.Members() {
 		fld, _ := c.FieldForKey(key)
 		repr += fmt.Sprintf("%s: %v.\n", key, fld.Interface())
 	}
-	return
+	return repr
 }
 
 type InitFunc struct {
@@ -134,6 +134,9 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 		log.Println("initC.ReInit() OK")
 		cval.FieldByName("Initialized").SetBool(true)
 	}
+
+	log.Println("cval.MethodByName(String).CanSet?", cval.MethodByName("String"))
+	//Set(reflect.ValueOf(initC.AsString))
 
 	return
 }
