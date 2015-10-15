@@ -18,6 +18,9 @@ var (
 
 func TestMain(m *testing.M) {
 	fmt.Println("TestMain\n")
+
+	TestMode = true
+
 	Cfg := struct {
 		Config
 
@@ -49,13 +52,7 @@ func TestMain(m *testing.M) {
 		IntSet    *set.IntSet
 	}{}
 
-	initFunc := func() (err error) {
-		Cfg.StringSet = set.NewStringSet([]string{"foo"}...)
-		Cfg.IntSet = set.NewIntSet()
-		return
-	}
-
-	err := InitConfig(&Cfg, initFunc)
+	err := InitConfig(&Cfg)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -301,10 +298,13 @@ func TestDefaultValues(t *testing.T) {
 		IntSet    *set.IntSet
 	}{}
 
-	initFunc := func() (err error) {
-		cfg.StringSet = set.NewStringSet([]string{"foo", "bar"}...)
-		cfg.IntSet = set.NewIntSet([]int{1, 2}...)
-		return
+	initFunc := InitFunc{
+		F: func() (err error) {
+			cfg.StringSet = set.NewStringSet([]string{"foo", "bar"}...)
+			cfg.IntSet = set.NewIntSet([]int{1, 2}...)
+			return
+		},
+		ExitOnError: false,
 	}
 
 	err := InitConfig(&cfg, initFunc)

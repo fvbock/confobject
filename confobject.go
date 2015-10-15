@@ -23,6 +23,10 @@ const (
 	TAG_ASSERTION_FIELD = "_"
 )
 
+var (
+	TestMode bool
+)
+
 type Config struct {
 	MainConfig             reflect.Value
 	ConfigValues           map[string]interface{}
@@ -176,6 +180,10 @@ func (c *Config) ReInit() (err error) {
 		if err != nil {
 			log.Printf("INIT: %s ERROR:%v\n", fName, err)
 			if f.ExitOnError {
+				// for tests we need to return the err - not exit the tests
+				if TestMode {
+					return
+				}
 				os.Exit(1)
 			}
 			log.Printf("Ignoring error. (ExitOnError=false)")
