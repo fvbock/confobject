@@ -62,7 +62,7 @@ I also needed:
 			F:           setupThisOtherThing,
 			ExitOnError: false,
 		},
-}...)
+    }...)
 
 
     func loadConfFile() (err error) {
