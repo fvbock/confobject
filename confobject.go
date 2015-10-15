@@ -34,8 +34,9 @@ type Config struct {
 	ConfigTags             map[string]reflect.StructTag
 	PanicOnAssignmentError bool
 	Assertions             map[string]map[string][]Assertion
-	initFuncs              []func() (err error)
+	initFuncs              []InitFunc
 	LogSet                 bool
+	// initFuncs              []func() (err error)
 }
 
 func (c Config) String() string {
@@ -48,11 +49,11 @@ func (c Config) String() string {
 }
 
 type InitFunc struct {
-	f           func() (err error)
-	exitOnError bool
+	F           func() (err error)
+	ExitOnError bool
 }
 
-func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
+func InitConfig(c interface{}, initFuncs ...InitFunc) (err error) {
 	cval := reflect.ValueOf(c)
 	for cval.Kind() == reflect.Ptr {
 		cval = cval.Elem()
@@ -104,13 +105,22 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 	}
 
 	initC.initFuncs = append(
-		[]func() (err error){
-			initC.setDefaults,
-			initC.readFromEnv,
+		[]InitFunc{
+			InitFunc{
+				F:           initC.setDefaults,
+				ExitOnError: true,
+			},
+			InitFunc{
+				F:           initC.readFromEnv,
+				ExitOnError: true,
+			},
 		},
 		append(
 			initFuncs,
-			initC.Validate,
+			InitFunc{
+				F:           initC.Validate,
+				ExitOnError: true,
+			},
 		)...,
 	)
 
@@ -135,9 +145,6 @@ func InitConfig(c interface{}, initFuncs ...func() (err error)) (err error) {
 		cval.FieldByName("Initialized").SetBool(true)
 	}
 
-	log.Println("cval.MethodByName(String).CanSet?", cval.MethodByName("String"))
-	//Set(reflect.ValueOf(initC.AsString))
-
 	return
 }
 
@@ -159,12 +166,21 @@ func (c *Config) FieldForKey(key string) (field reflect.Value, err error) {
 
 func (c *Config) ReInit() (err error) {
 	for _, f := range c.initFuncs {
-		err = f()
+		err = f.F()
+		fName := strings.Replace(
+			runtime.FuncForPC(reflect.ValueOf(f.F).Pointer()).Name(),
+			"github.com/fvbock/confobject.",
+			"",
+			1,
+		)
 		if err != nil {
-			log.Printf("INIT: %s ERROR:%v\n", runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name(), err)
+			log.Printf("INIT: %s ERROR:%v\n", fName, err)
+			if f.ExitOnError {
+				os.Exit(1)
+			}
 			return
 		} else {
-			log.Printf("INIT: %s ok.\n", runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name())
+			log.Printf("INIT: %s ok.\n", fName)
 		}
 	}
 	return
