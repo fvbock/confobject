@@ -2,9 +2,7 @@
 
 Reloadable, validated configuration from many sources
 
-[![Build Status](https://travis-ci.org/fvbock/confobject.png)](https://travis-ci.org/fvbock/confobject)
-
-[![GoDoc](https://godoc.org/github.com/fvbock/confobject?status.svg)](https://godoc.org/github.com/fvbock/confobject)
+[![Build Status](https://travis-ci.org/fvbock/confobject.png)](https://travis-ci.org/fvbock/confobject) [![GoDoc](https://godoc.org/github.com/fvbock/confobject?status.svg)](https://godoc.org/github.com/fvbock/confobject)
 
 
 ## Motivation
