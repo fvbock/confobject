@@ -64,6 +64,18 @@ I also needed:
 		},
 }...)
 
+
+    func loadConfFile() (err error) {
+    	conf := make(map[string]string)
+
+        ...
+
+    	err = Cfg.Set(conf)
+    	return
+    }
+
+
+
 ## Limitations
 
 ## TODOs
