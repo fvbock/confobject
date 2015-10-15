@@ -178,7 +178,8 @@ func (c *Config) ReInit() (err error) {
 			if f.ExitOnError {
 				os.Exit(1)
 			}
-			return
+			log.Printf("Ignoring error. (ExitOnError=false)")
+			err = nil
 		} else {
 			log.Printf("INIT: %s ok.\n", fName)
 		}
