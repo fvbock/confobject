@@ -306,6 +306,11 @@ func (c *Config) Set(configData interface{}, prependKeys ...string) (err error) 
 	// 	err = fmt.Errorf("Cannot set any values on an uninitialized Object. Call InitConfig() first!")
 	// }
 	configValue := reflect.ValueOf(configData)
+
+	for configValue.Kind() == reflect.Ptr {
+		configValue = configValue.Elem()
+	}
+
 	switch configValue.Kind() {
 	case reflect.Struct:
 		_, types, _ := StructFields(configData)
@@ -378,8 +383,8 @@ func (c *Config) Set(configData interface{}, prependKeys ...string) (err error) 
 			}
 		}
 	default:
-		// panic(fmt.Sprintf("I got stuff i can't deal with: %v\n", configData))
-		log.Printf("I got stuff i can't deal with: %v\n", configData)
+		err = fmt.Errorf("I got stuff i can't deal with: %v\n", configData)
+		log.Println(err)
 	}
 
 	return
