@@ -21,7 +21,7 @@ func sliceFromStrings(value interface{}, type_ interface{}) (vs interface{}, err
 				var iv int64
 				iv, err = strconv.ParseInt(s, 10, 64)
 				if err != nil {
-					err = fmt.Errorf("Cannot parse %v", s)
+					err = fmt.Errorf("Cannot parse %v (int)", s)
 					return
 				}
 				ivs = append(ivs, int(iv))
@@ -33,14 +33,14 @@ func sliceFromStrings(value interface{}, type_ interface{}) (vs interface{}, err
 				var fv float64
 				fv, err = strconv.ParseFloat(s, 64)
 				if err != nil {
-					err = fmt.Errorf("Cannot parse %v", s)
+					err = fmt.Errorf("Cannot parse %v (float64)", s)
 					return
 				}
 				fvs = append(fvs, fv)
 			}
 			return fvs, err
 		default:
-			err = fmt.Errorf("Cannot parse %v", value)
+			err = fmt.Errorf("Cannot parse %v (%v)", value, reflect.ValueOf(value).Kind())
 			return
 		}
 	case []string:
@@ -63,7 +63,7 @@ func sliceFromStrings(value interface{}, type_ interface{}) (vs interface{}, err
 
 		}
 	default:
-		err = fmt.Errorf("Cannot parse %v", value)
+		err = fmt.Errorf("Cannot parse %v (%v)", value, reflect.ValueOf(value).Kind())
 	}
 	return
 }
@@ -101,14 +101,24 @@ func intFromInterface(value interface{}) (v int64, err error) {
 		v = int64(value.(int))
 	case int8:
 		v = int64(value.(int8))
+	case uint8:
+		v = int64(value.(uint8))
 	case int16:
 		v = int64(value.(int16))
+	case uint16:
+		v = int64(value.(uint16))
 	case int32:
 		v = int64(value.(int32))
+	case uint32:
+		v = int64(value.(uint32))
+	case int64:
+		v = value.(int64)
+	case uint64:
+		v = int64(value.(uint64))
 	case string:
 		v, err = strconv.ParseInt(value.(string), 10, 64)
 	default:
-		err = fmt.Errorf("Cannot parse %v", value)
+		err = fmt.Errorf("Cannot parse %v (%v)", value, reflect.ValueOf(value).Kind())
 	}
 
 	return
