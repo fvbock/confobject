@@ -135,7 +135,11 @@ func InitConfig(c interface{}, initFuncs ...InitFunc) (err error) {
 		err = initC.extractAssertions()
 		if err == nil {
 			log.Println("initC.extractAssertions() OK")
+		} else {
+			return
 		}
+	} else {
+		return
 	}
 
 	// init functions might reference a global config - we now need to operate
