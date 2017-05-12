@@ -581,9 +581,14 @@ func (c *Config) readFromEnv() (err error) {
 	for _, enVar := range env {
 		key, val := strings.Split(enVar, "=")[0], strings.Split(enVar, "=")[1]
 		if len(key) >= len(ENV_PREFIX) && key[0:len(ENV_PREFIX)] == ENV_PREFIX &&
-			c.ConfigKeys.HasMember(key[len(ENV_PREFIX):]) {
+			(c.ConfigKeys.HasMember(key[len(ENV_PREFIX):]) || c.KeyAliases.HasMember(key[len(ENV_PREFIX):])) {
 			log.Println(key[0:len(ENV_PREFIX)], key[len(ENV_PREFIX):])
-			err = c.setValue(key[len(ENV_PREFIX):], val)
+			if c.KeyAliases.HasMember(key[len(ENV_PREFIX):]) {
+				// alias
+				err = c.setValue(c.AliasKeyMap[key[len(ENV_PREFIX):]], val)
+			} else {
+				err = c.setValue(key[len(ENV_PREFIX):], val)
+			}
 			if err != nil {
 				log.Println("Error setting from ENV:", err)
 				return
