@@ -47,7 +47,7 @@ func (c Config) String() string {
 	var repr = "Current Config:\n"
 	for _, key := range c.ConfigKeys.Members() {
 		fld, _ := c.FieldForKey(key)
-		repr += fmt.Sprintf("%s: %v.\n", key, fld.Interface())
+		repr += fmt.Sprintf("%s: %v\n", key, fld.Interface())
 	}
 	return repr
 }
@@ -62,6 +62,15 @@ func InitConfig(c interface{}, initFuncs ...InitFunc) (err error) {
 	for cval.Kind() == reflect.Ptr {
 		cval = cval.Elem()
 	}
+
+	// TODO: check if cval or cval.FieldByName("Config") point to a zero value (uninitialized config) and return an error if that's the case
+	// if you have
+	// var (
+	// 	Cfg *service.ServiceConfig
+	// )
+	// and do not initialize it like
+	//	Cfg = &service.ServiceConfig{}
+	// before calling InitConfig()
 	cf := cval.FieldByName("Config").Interface().(Config)
 
 	if cf.Initialized {
@@ -571,10 +580,19 @@ func (c *Config) readFromEnv() (err error) {
 	env := os.Environ()
 	for _, enVar := range env {
 		key, val := strings.Split(enVar, "=")[0], strings.Split(enVar, "=")[1]
+		// check for values with prefix
 		if len(key) >= len(ENV_PREFIX) && key[0:len(ENV_PREFIX)] == ENV_PREFIX &&
 			c.ConfigKeys.HasMember(key[len(ENV_PREFIX):]) {
-			log.Println(key[0:len(ENV_PREFIX)], key[len(ENV_PREFIX):])
+			log.Println("[env] Setting", key[0:len(ENV_PREFIX)], key[len(ENV_PREFIX):])
 			err = c.setValue(key[len(ENV_PREFIX):], val)
+			if err != nil {
+				log.Println("Error setting from ENV:", err)
+				return
+			}
+		} else if c.KeyAliases.HasMember(key) {
+			// check for aliases without prefix
+			log.Println("[env] Setting alias", key, c.AliasKeyMap[key], val)
+			err = c.setValue(c.AliasKeyMap[key], val)
 			if err != nil {
 				log.Println("Error setting from ENV:", err)
 				return

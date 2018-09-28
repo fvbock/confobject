@@ -1,6 +1,6 @@
 # ConfObject
 
-Reloadable, validated configuration from many sources
+Reloadable, validated configuration from many - sometimes uncontrollable - sources
 
 [![Build Status](https://travis-ci.org/fvbock/confobject.png)](https://travis-ci.org/fvbock/confobject) [![GoDoc](https://godoc.org/github.com/fvbock/confobject?status.svg)](https://godoc.org/github.com/fvbock/confobject)
 
