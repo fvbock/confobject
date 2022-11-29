@@ -96,7 +96,14 @@ func InitConfig(c interface{}, initFuncs ...InitFunc) (err error) {
 	for key, type_ := range types {
 		switch type_ {
 		case "*set.StringSet":
-			cval.FieldByName(key).Set(reflect.ValueOf(set.NewStringSet()))
+			// FIXME: this is a hack and only works for one level
+			// also fix for the other types
+			if !strings.Contains(key, ".") {
+				cval.FieldByName(key).Set(reflect.ValueOf(set.NewStringSet()))
+			} else {
+				path := strings.Split(key, ".")
+				cval.FieldByName(path[0]).FieldByName(path[1]).Set(reflect.ValueOf(set.NewStringSet()))
+			}
 		case "*set.IntSet":
 			cval.FieldByName(key).Set(reflect.ValueOf(set.NewIntSet()))
 		case "*set.Int64Set":
@@ -588,6 +595,7 @@ func (c *Config) setDefaults() (err error) {
 func (c *Config) readFromEnv() (err error) {
 	env := os.Environ()
 	for _, enVar := range env {
+		log.Println("[env] Setting", enVar)
 		key, val := strings.Split(enVar, "=")[0], strings.Split(enVar, "=")[1]
 		// check for values with prefix
 		if len(key) >= len(ENV_PREFIX) && key[0:len(ENV_PREFIX)] == ENV_PREFIX &&
