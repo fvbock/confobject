@@ -595,12 +595,12 @@ func (c *Config) setDefaults() (err error) {
 func (c *Config) readFromEnv() (err error) {
 	env := os.Environ()
 	for _, enVar := range env {
-		log.Println("[env] Setting", enVar)
+		// log.Println("[env] Setting", enVar)
 		key, val := strings.Split(enVar, "=")[0], strings.Split(enVar, "=")[1]
 		// check for values with prefix
 		if len(key) >= len(ENV_PREFIX) && key[0:len(ENV_PREFIX)] == ENV_PREFIX &&
 			c.ConfigKeys.HasMember(key[len(ENV_PREFIX):]) {
-			log.Println("[env] Setting", key[0:len(ENV_PREFIX)], key[len(ENV_PREFIX):])
+			// log.Println("[env] Setting", key[0:len(ENV_PREFIX)], key[len(ENV_PREFIX):])
 			err = c.setValue(key[len(ENV_PREFIX):], val)
 			if err != nil {
 				log.Println("Error setting from ENV:", err)
