@@ -608,7 +608,12 @@ func (c *Config) readFromEnv() (err error) {
 			}
 		} else if c.KeyAliases.HasMember(key) {
 			// check for aliases without prefix
-			log.Println("[env] Setting alias", key, c.AliasKeyMap[key], val)
+			if strings.Contains(key, "KEY") || strings.Contains(c.AliasKeyMap[key], "Key") ||
+				strings.Contains(key, "PASS") || strings.Contains(c.AliasKeyMap[key], "Pass") {
+				log.Println("[env] Setting alias", key, c.AliasKeyMap[key], "********")
+			} else {
+				log.Println("[env] Setting alias", key, c.AliasKeyMap[key], val)
+			}
 			err = c.setValue(c.AliasKeyMap[key], val)
 			if err != nil {
 				log.Println("Error setting from ENV:", err)
