@@ -1,7 +1,7 @@
 package confobject
 
 import (
-	"github.com/smartystreets/assertions/should"
+	"github.com/smarty/assertions/should"
 )
 
 type Assertion func(actual interface{}, expectedList ...interface{}) string
